@@ -16,6 +16,7 @@ from .models import HolyText
 
 ALLOWED_STYLES = {"genesis", "psalm", "proverb", "revelation", "gospel", "commandment"}
 ALLOWED_MOODS = {"serious", "absurd"}
+RANDOM_VALUE = "random"
 PLACEHOLDER_RE = re.compile(r"{([a-zA-Z_][a-zA-Z0-9_]*)}")
 
 CONTEXT_KEYWORDS = {
@@ -33,10 +34,10 @@ class HolyWaterGenerator:
 
     def generate(
         self,
-        style: str = "genesis",
-        mood: str = "serious",
-        intensity: int = 3,
-        context: str | None = None,
+        style: str = RANDOM_VALUE,
+        mood: str = RANDOM_VALUE,
+        intensity: int | None = None,
+        context: str | None = RANDOM_VALUE,
         seed: int | str | None = None,
         *,
         save_history: bool = True,
@@ -45,20 +46,17 @@ class HolyWaterGenerator:
         """Return one generated HolyText.
 
         Args:
-            style: One of genesis, psalm, proverb, revelation, gospel, commandment.
-            mood: serious or absurd.
-            intensity: 1..5, where higher values prefer stranger and stronger wording.
-            context: Optional scene such as coding, thesis, or gaming.
+            style: One of genesis, psalm, proverb, revelation, gospel, commandment, or random.
+            mood: serious, absurd, or random.
+            intensity: 1..5, where higher values prefer stranger and stronger wording. None means random.
+            context: Optional scene such as coding, thesis, gaming, or random.
             seed: Optional reproducibility seed.
             save_history: Store generated content in generation_history.
             avoid_recent: Retry a few times when generated content was seen recently.
         """
-
-        style = self._validate_style(style)
-        mood = self._validate_mood(mood)
-        intensity = self._validate_intensity(intensity)
         seed_value = self._normalize_seed(seed)
         rng = random.Random(seed_value)
+        style, mood, intensity, context = self._resolve_options(style, mood, intensity, context, rng)
 
         recent_texts = self._recent_texts(style, mood) if avoid_recent else set()
         last_candidate: HolyText | None = None
@@ -79,10 +77,10 @@ class HolyWaterGenerator:
 
     def daily(
         self,
-        style: str = "genesis",
-        mood: str = "serious",
-        intensity: int = 3,
-        context: str | None = None,
+        style: str = RANDOM_VALUE,
+        mood: str = RANDOM_VALUE,
+        intensity: int | None = None,
+        context: str | None = RANDOM_VALUE,
         on_date: date | None = None,
     ) -> HolyText:
         """Return a deterministic daily text using the calendar date as seed."""
@@ -244,20 +242,56 @@ class HolyWaterGenerator:
             raise ValueError("intensity must be between 1 and 5")
         return intensity
 
+    @classmethod
+    def _resolve_options(
+        cls,
+        style: str,
+        mood: str,
+        intensity: int | None,
+        context: str | None,
+        rng: random.Random,
+    ) -> tuple[str, str, int, str | None]:
+        style = style.lower()
+        mood = mood.lower()
+        if style == RANDOM_VALUE:
+            style = rng.choice(sorted(ALLOWED_STYLES))
+        else:
+            style = cls._validate_style(style)
+
+        if mood == RANDOM_VALUE:
+            mood = rng.choice(sorted(ALLOWED_MOODS))
+        else:
+            mood = cls._validate_mood(mood)
+
+        if intensity is None or intensity == 0:
+            intensity = rng.randint(1, 5)
+        else:
+            intensity = cls._validate_intensity(intensity)
+
+        context_marker = context.lower() if isinstance(context, str) else context
+        if context_marker == RANDOM_VALUE:
+            context = rng.choice([None, *sorted(CONTEXT_KEYWORDS)])
+        elif context_marker in {"", "none", "null"}:
+            context = None
+
+        return style, mood, intensity, context
+
     @staticmethod
     def _normalize_seed(seed: int | str | None) -> int:
         if seed is None:
             return random.SystemRandom().randint(1, 2**31 - 1)
         if isinstance(seed, int):
             return seed
+        if seed.isdecimal():
+            return int(seed)
         return stable_seed(seed)
 
 
 def generate(
-    style: str = "genesis",
-    mood: str = "serious",
-    intensity: int = 3,
-    context: str | None = None,
+    style: str = RANDOM_VALUE,
+    mood: str = RANDOM_VALUE,
+    intensity: int | None = None,
+    context: str | None = RANDOM_VALUE,
     seed: int | str | None = None,
     db_path: str | Path | None = None,
 ) -> HolyText:
@@ -331,6 +365,12 @@ def _adjust_weight(
         weight *= 0.85 + intensity * 0.16
 
     if context:
+        for other_context, keywords in CONTEXT_KEYWORDS.items():
+            if other_context == context:
+                continue
+            if any(keyword in text for keyword in keywords):
+                weight *= 0.12
+                break
         for keyword in CONTEXT_KEYWORDS.get(context, (context,)):
             if keyword and keyword in text:
                 weight *= 2.25

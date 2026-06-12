@@ -31,10 +31,10 @@ def init_db(
 
 @app.command()
 def generate(
-    style: str = typer.Option("genesis", help="genesis, psalm, proverb, revelation, gospel, commandment."),
-    mood: str = typer.Option("serious", help="serious or absurd."),
-    intensity: int = typer.Option(3, min=1, max=5, help="1..5, from gentle to apocalyptic."),
-    context: Optional[str] = typer.Option(None, help="Optional context, e.g. coding, thesis, gaming."),
+    style: str = typer.Option("random", help="random, genesis, psalm, proverb, revelation, gospel, commandment."),
+    mood: str = typer.Option("random", help="random, serious, or absurd."),
+    intensity: Optional[int] = typer.Option(None, help="Random by default. Use 1..5 to fix intensity."),
+    context: Optional[str] = typer.Option("random", help="random by default, or use coding, thesis, gaming, none."),
     seed: Optional[str] = typer.Option(None, help="Optional seed for reproducible output."),
     db_path: Optional[Path] = typer.Option(None, "--db", help="SQLite database path."),
     json_output: bool = typer.Option(False, "--json", help="Print structured JSON."),
@@ -56,10 +56,10 @@ def generate(
 
 @app.command()
 def daily(
-    style: str = typer.Option("genesis", help="genesis, psalm, proverb, revelation, gospel, commandment."),
-    mood: str = typer.Option("serious", help="serious or absurd."),
-    intensity: int = typer.Option(3, min=1, max=5, help="1..5, from gentle to apocalyptic."),
-    context: Optional[str] = typer.Option(None, help="Optional context, e.g. coding, thesis, gaming."),
+    style: str = typer.Option("random", help="random, genesis, psalm, proverb, revelation, gospel, commandment."),
+    mood: str = typer.Option("random", help="random, serious, or absurd."),
+    intensity: Optional[int] = typer.Option(None, help="Random by default. Use 1..5 to fix intensity."),
+    context: Optional[str] = typer.Option("random", help="random by default, or use coding, thesis, gaming, none."),
     db_path: Optional[Path] = typer.Option(None, "--db", help="SQLite database path."),
     json_output: bool = typer.Option(False, "--json", help="Print structured JSON."),
 ) -> None:

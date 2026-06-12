@@ -12,8 +12,33 @@
 - 引用：每条文案返回伪经文引用，例如 `《饮水记》2:7`
 - 去重：`generation_history` 会记录近期生成内容，短时间内尽量避免重复
 - daily：使用日期和参数生成每日固定文案
+- 默认随机：不传参数时会随机选择 style、mood、intensity 和 context
+
+语料扩充建议见 [docs/corpus_sources.md](docs/corpus_sources.md)。
 
 ## 安装
+
+推荐使用 `uv`：
+
+```powershell
+uv sync
+uv run holywater init-db
+uv run holywater generate
+```
+
+启动 API：
+
+```powershell
+uv run uvicorn holywater.api:app --reload
+```
+
+不用安装命令行入口时，也可以直接运行模块：
+
+```powershell
+uv run python -m holywater generate
+```
+
+传统 `venv`/`pip` 方式：
 
 ```powershell
 python -m venv .venv
@@ -29,10 +54,6 @@ python -m pip install -e .
 from holywater import generate
 
 text = generate(
-    style="psalm",
-    mood="serious",
-    intensity=2,
-    context="coding",
     seed=20260612,
 )
 
@@ -58,6 +79,14 @@ holywater init-db
 生成一条文案：
 
 ```powershell
+holywater generate
+```
+
+固定部分参数，其余参数继续随机：
+
+```powershell
+holywater generate --style revelation
+holywater generate --mood absurd --intensity 5
 holywater generate --style revelation --mood absurd --intensity 5 --context gaming
 ```
 
@@ -77,7 +106,7 @@ holywater daily --style genesis --mood serious --context coding
 
 ```powershell
 $env:PYTHONPATH="src"
-python -m holywater generate --style genesis --mood serious --intensity 3
+python -m holywater generate
 ```
 
 ## API Mode
@@ -98,6 +127,7 @@ uvicorn holywater.api:app --reload
 生成接口：
 
 ```text
+GET /generate
 GET /generate?style=revelation&mood=absurd&intensity=5&context=gaming&seed=42
 ```
 
@@ -152,6 +182,13 @@ GET /daily?style=psalm&mood=serious&intensity=2&context=coding&day=2026-06-12
 
 ```powershell
 $env:PYTHONPATH="src"
-python -m compileall src examples tests
+python -B -c "import pathlib; [compile(p.read_text(encoding='utf-8'), str(p), 'exec') for root in ('src','examples','tests') for p in pathlib.Path(root).rglob('*.py')]; print('Syntax check passed.')"
 python tests/test_generator.py
+```
+
+使用 `uv`：
+
+```powershell
+uv run python -B -c "import pathlib; [compile(p.read_text(encoding='utf-8'), str(p), 'exec') for root in ('src','examples','tests') for p in pathlib.Path(root).rglob('*.py')]; print('Syntax check passed.')"
+uv run python tests/test_generator.py
 ```

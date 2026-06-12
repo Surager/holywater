@@ -14,8 +14,16 @@ dependencies = [
     "uvicorn>=0.30.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
 [project.scripts]
 holywater = "holywater.cli:app"
+
+[tool.uv]
+package = true
 
 [tool.setuptools.packages.find]
 where = ["src"]

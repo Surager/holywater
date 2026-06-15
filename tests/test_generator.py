@@ -11,7 +11,15 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from holywater.db import CONTEXT_FRAGMENTS, DEPRECATED_TEMPLATES, FRAGMENTS, TEMPLATES, initialize_database
-from holywater.generator import ALLOWED_MOODS, ALLOWED_STYLES, HolyWaterGenerator
+from holywater.generator import (
+    ALLOWED_MOODS,
+    ALLOWED_STYLES,
+    DEFAULT_CONTEXT_CHOICES,
+    DEFAULT_MOOD_CHOICES,
+    MODERN_CONTEXT_KEYWORDS,
+    MODERN_CONTEXTS,
+    HolyWaterGenerator,
+)
 
 
 def test_database_initializes() -> None:
@@ -97,6 +105,16 @@ def test_default_generation_is_random_but_seeded() -> None:
         assert first.mood in ALLOWED_MOODS
 
 
+def test_default_context_choices_favor_neutral_life() -> None:
+    modern_count = sum(1 for context in DEFAULT_CONTEXT_CHOICES if context in MODERN_CONTEXTS)
+    neutral_count = len(DEFAULT_CONTEXT_CHOICES) - modern_count
+    assert neutral_count > modern_count
+
+
+def test_default_mood_choices_favor_serious() -> None:
+    assert DEFAULT_MOOD_CHOICES.count("serious") > DEFAULT_MOOD_CHOICES.count("absurd")
+
+
 def test_random_style_can_pick_non_genesis() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         generator = HolyWaterGenerator(Path(tmp) / "holywater.sqlite3")
@@ -105,6 +123,19 @@ def test_random_style_can_pick_non_genesis() -> None:
             for seed in range(20)
         }
         assert styles - {"genesis"}
+
+
+def test_neutral_context_filters_modern_fragments() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        generator = HolyWaterGenerator(Path(tmp) / "holywater.sqlite3")
+        for seed in range(30):
+            text = generator.generate(
+                context="none",
+                seed=seed,
+                save_history=False,
+                avoid_recent=False,
+            )
+            assert not any(keyword in text.content for keyword in MODERN_CONTEXT_KEYWORDS)
 
 
 def test_daily_is_stable() -> None:
@@ -129,6 +160,9 @@ if __name__ == "__main__":
     test_seed_reproducible()
     test_numeric_string_seed_is_preserved()
     test_default_generation_is_random_but_seeded()
+    test_default_context_choices_favor_neutral_life()
+    test_default_mood_choices_favor_serious()
     test_random_style_can_pick_non_genesis()
+    test_neutral_context_filters_modern_fragments()
     test_daily_is_stable()
     print("All tests passed.")

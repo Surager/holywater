@@ -20,10 +20,85 @@ RANDOM_VALUE = "random"
 PLACEHOLDER_RE = re.compile(r"{([a-zA-Z_][a-zA-Z0-9_]*)}")
 
 CONTEXT_KEYWORDS = {
+    "home": ("清晨", "窗边", "厨房", "茶几", "家中", "院中"),
+    "walk": ("路上", "街角", "行路", "风中", "树影", "门前"),
+    "rest": ("午后", "榻边", "安静", "歇息", "灯下", "片刻"),
+    "reading": ("书页", "灯下", "案头", "书桌", "窗前", "纸页"),
     "coding": ("代码", "终端", "调试", "异常", "缓存"),
     "thesis": ("论文", "脚注", "段落", "修订", "截止日期"),
     "gaming": ("排位", "加载", "复活", "显卡", "战场"),
 }
+MODERN_CONTEXTS = {"coding", "thesis", "gaming"}
+MODERN_CONTEXT_KEYWORDS = tuple(
+    keyword for context, keywords in CONTEXT_KEYWORDS.items() if context in MODERN_CONTEXTS for keyword in keywords
+) + (
+    "键盘",
+    "标签",
+    "窗口",
+    "滚动条",
+    "低电量",
+    "提交",
+    "构建",
+    "堆栈",
+    "查重",
+    "格式",
+    "参考文献",
+    "战绩",
+    "闪现",
+    "小地图",
+    "团战",
+    "连败",
+    "屏幕",
+    "进度条",
+    "番茄钟",
+    "日志",
+    "分支",
+    "错误信息",
+    "空指针",
+    "断点",
+    "摘要",
+    "结论",
+    "注释",
+    "待办",
+    "提醒事项",
+    "匹配",
+    "键位",
+    "任务",
+    "操作",
+    "心态",
+    "鼠标",
+    "论证",
+    "打印机",
+    "通知",
+    "白板",
+    "便签",
+    "消息",
+    "日程表",
+)
+DEFAULT_CONTEXT_CHOICES = [
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    "home",
+    "home",
+    "home",
+    "home",
+    "walk",
+    "walk",
+    "rest",
+    "rest",
+    "reading",
+    "reading",
+]
+DEFAULT_MOOD_CHOICES = ["serious", "serious", "serious", "serious", "serious", "absurd", "absurd"]
+DEFAULT_INTENSITY_CHOICES = [1, 1, 2, 2, 3, 3, 4, 5]
 
 
 class HolyWaterGenerator:
@@ -146,6 +221,7 @@ class HolyWaterGenerator:
         if not rows:
             raise RuntimeError("No enabled templates found. Run `holywater init-db` first.")
 
+        rows = _filter_context_rows(rows, context)
         weighted = [
             (row, _adjust_weight(row, style, mood, intensity, context, is_template=True))
             for row in rows
@@ -184,6 +260,7 @@ class HolyWaterGenerator:
         if not rows:
             raise RuntimeError(f"No fragments found for category `{category}`.")
 
+        rows = _filter_context_rows(rows, context)
         weighted = [(row, _adjust_weight(row, style, mood, intensity, context)) for row in rows]
         return _weighted_choice(weighted, rng)["value"]
 
@@ -259,18 +336,18 @@ class HolyWaterGenerator:
             style = cls._validate_style(style)
 
         if mood == RANDOM_VALUE:
-            mood = rng.choice(sorted(ALLOWED_MOODS))
+            mood = rng.choice(DEFAULT_MOOD_CHOICES)
         else:
             mood = cls._validate_mood(mood)
 
         if intensity is None or intensity == 0:
-            intensity = rng.randint(1, 5)
+            intensity = rng.choice(DEFAULT_INTENSITY_CHOICES)
         else:
             intensity = cls._validate_intensity(intensity)
 
         context_marker = context.lower() if isinstance(context, str) else context
         if context_marker == RANDOM_VALUE:
-            context = rng.choice([None, *sorted(CONTEXT_KEYWORDS)])
+            context = rng.choice(DEFAULT_CONTEXT_CHOICES)
         elif context_marker in {"", "none", "null"}:
             context = None
 
@@ -335,6 +412,17 @@ def _weighted_choice(items: list[tuple[dict[str, Any], float]], rng: random.Rand
     return items[-1][0]
 
 
+def _filter_context_rows(rows: list[dict[str, Any]], context: str | None) -> list[dict[str, Any]]:
+    if context in MODERN_CONTEXTS:
+        return rows
+    filtered = [
+        row
+        for row in rows
+        if not any(keyword in (row.get("value") or row.get("template") or "") for keyword in MODERN_CONTEXT_KEYWORDS)
+    ]
+    return filtered or rows
+
+
 def _adjust_weight(
     row: dict[str, Any],
     style: str,
@@ -365,6 +453,8 @@ def _adjust_weight(
         weight *= 0.85 + intensity * 0.16
 
     if context:
+        if context not in MODERN_CONTEXTS and any(keyword in text for keyword in MODERN_CONTEXT_KEYWORDS):
+            weight *= 0.01
         for other_context, keywords in CONTEXT_KEYWORDS.items():
             if other_context == context:
                 continue
@@ -377,5 +467,7 @@ def _adjust_weight(
                 break
         if is_template and "context_scene" in text:
             weight *= 1.0 + intensity * 0.05
+    elif any(keyword in text for keyword in MODERN_CONTEXT_KEYWORDS):
+        weight *= 0.01
 
     return weight

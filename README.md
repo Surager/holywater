@@ -7,12 +7,12 @@
 - 子风格：`genesis`、`psalm`、`proverb`、`revelation`、`gospel`、`commandment`
 - mood：`serious`、`absurd`
 - intensity：`1` 到 `5`，从普通提醒逐步偏向强烈、荒诞、启示录式表达
-- context：内置 `coding`、`thesis`、`gaming` 的权重增强
+- context：默认偏向中性生活场景；可显式使用 `home`、`walk`、`rest`、`reading`、`coding`、`thesis`、`gaming`
 - seed：传入相同 seed 可复现生成结果
 - 引用：每条文案返回伪经文引用，例如 `《饮水记》2:7`
 - 去重：`generation_history` 会记录近期生成内容，短时间内尽量避免重复
 - daily：使用日期和参数生成每日固定文案
-- 默认随机：不传参数时会随机选择 style、mood、intensity 和 context
+- 默认随机：不传参数时会随机选择 style、mood、intensity 和生活类 context；程序员、论文、游戏场景需要显式传 `--context coding/thesis/gaming`
 
 语料扩充建议见 [docs/corpus_sources.md](docs/corpus_sources.md)。
 
@@ -87,6 +87,7 @@ holywater generate
 ```powershell
 holywater generate --style revelation
 holywater generate --mood absurd --intensity 5
+holywater generate --style psalm --context home
 holywater generate --style revelation --mood absurd --intensity 5 --context gaming
 ```
 

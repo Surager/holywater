@@ -48,7 +48,10 @@ def generate_endpoint(
     style: str = Query("random", description="random, genesis, psalm, proverb, revelation, gospel, commandment"),
     mood: str = Query("random", description="random, serious, or absurd"),
     intensity: Optional[int] = Query(None, ge=1, le=5, description="Random by default. Use 1..5 to fix intensity."),
-    context: Optional[str] = Query("random", description="random by default, or use coding, thesis, gaming, none"),
+    context: Optional[str] = Query(
+        "random",
+        description="random by default, or use home, walk, rest, reading, coding, thesis, gaming, none",
+    ),
     seed: Optional[str] = Query(None, description="Optional reproducibility seed"),
 ) -> HolyTextResponse:
     """Generate one reminder and write it to generation_history."""
@@ -62,7 +65,10 @@ def daily_endpoint(
     style: str = Query("random", description="random, genesis, psalm, proverb, revelation, gospel, commandment"),
     mood: str = Query("random", description="random, serious, or absurd"),
     intensity: Optional[int] = Query(None, ge=1, le=5, description="Random by default. Use 1..5 to fix intensity."),
-    context: Optional[str] = Query("random", description="random by default, or use coding, thesis, gaming, none"),
+    context: Optional[str] = Query(
+        "random",
+        description="random by default, or use home, walk, rest, reading, coding, thesis, gaming, none",
+    ),
     day: Optional[date] = Query(None, description="Date used as daily seed. Defaults to today."),
 ) -> HolyTextResponse:
     """Return a deterministic daily reminder for the given date."""

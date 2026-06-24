@@ -50,7 +50,7 @@ def generate_endpoint(
     intensity: Optional[int] = Query(None, ge=1, le=5, description="Random by default. Use 1..5 to fix intensity."),
     context: Optional[str] = Query(
         "random",
-        description="random by default, or use home, walk, rest, reading, coding, thesis, gaming, none",
+        description="random by default, or use home, walk, rest, reading, meal, garden, coding, thesis, gaming, none",
     ),
     seed: Optional[str] = Query(None, description="Optional reproducibility seed"),
 ) -> HolyTextResponse:
@@ -67,7 +67,7 @@ def daily_endpoint(
     intensity: Optional[int] = Query(None, ge=1, le=5, description="Random by default. Use 1..5 to fix intensity."),
     context: Optional[str] = Query(
         "random",
-        description="random by default, or use home, walk, rest, reading, coding, thesis, gaming, none",
+        description="random by default, or use home, walk, rest, reading, meal, garden, coding, thesis, gaming, none",
     ),
     day: Optional[date] = Query(None, description="Date used as daily seed. Defaults to today."),
 ) -> HolyTextResponse:

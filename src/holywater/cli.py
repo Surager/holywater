@@ -36,7 +36,7 @@ def generate(
     intensity: Optional[int] = typer.Option(None, help="Random by default. Use 1..5 to fix intensity."),
     context: Optional[str] = typer.Option(
         "random",
-        help="random by default, or use home, walk, rest, reading, coding, thesis, gaming, none.",
+        help="random by default, or use home, walk, rest, reading, meal, garden, coding, thesis, gaming, none.",
     ),
     seed: Optional[str] = typer.Option(None, help="Optional seed for reproducible output."),
     db_path: Optional[Path] = typer.Option(None, "--db", help="SQLite database path."),
@@ -64,7 +64,7 @@ def daily(
     intensity: Optional[int] = typer.Option(None, help="Random by default. Use 1..5 to fix intensity."),
     context: Optional[str] = typer.Option(
         "random",
-        help="random by default, or use home, walk, rest, reading, coding, thesis, gaming, none.",
+        help="random by default, or use home, walk, rest, reading, meal, garden, coding, thesis, gaming, none.",
     ),
     db_path: Optional[Path] = typer.Option(None, "--db", help="SQLite database path."),
     json_output: bool = typer.Option(False, "--json", help="Print structured JSON."),

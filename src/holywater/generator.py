@@ -24,6 +24,8 @@ CONTEXT_KEYWORDS = {
     "walk": ("路上", "街角", "行路", "风中", "树影", "门前"),
     "rest": ("午后", "榻边", "安静", "歇息", "灯下", "片刻"),
     "reading": ("书页", "灯下", "案头", "书桌", "窗前", "纸页"),
+    "meal": ("饭前", "饭后", "餐桌", "厨房", "碗筷", "茶盏"),
+    "garden": ("院中", "花木", "泥土", "树下", "露水", "篱边"),
     "coding": ("代码", "终端", "调试", "异常", "缓存"),
     "thesis": ("论文", "脚注", "段落", "修订", "截止日期"),
     "gaming": ("排位", "加载", "复活", "显卡", "战场"),
@@ -96,6 +98,8 @@ DEFAULT_CONTEXT_CHOICES = [
     "rest",
     "reading",
     "reading",
+    "meal",
+    "garden",
 ]
 DEFAULT_MOOD_CHOICES = ["serious", "serious", "serious", "serious", "serious", "absurd", "absurd"]
 DEFAULT_INTENSITY_CHOICES = [1, 1, 2, 2, 3, 3, 4, 5]
@@ -420,6 +424,15 @@ def _filter_context_rows(rows: list[dict[str, Any]], context: str | None) -> lis
         for row in rows
         if not any(keyword in (row.get("value") or row.get("template") or "") for keyword in MODERN_CONTEXT_KEYWORDS)
     ]
+    if context:
+        context_keywords = CONTEXT_KEYWORDS.get(context, (context,))
+        context_matched = [
+            row
+            for row in filtered
+            if any(keyword in (row.get("value") or row.get("template") or "") for keyword in context_keywords)
+        ]
+        if context_matched:
+            return context_matched
     return filtered or rows
 
 

@@ -469,9 +469,14 @@ def _env_int(name: str, default: int) -> int:
     if value is None:
         return default
     try:
-        return int(value)
+        parsed = int(value)
     except ValueError:
         return default
+    if name == "HOLYWATER_HISTORY_RETENTION_DAYS":
+        return max(0, min(parsed, 3650))
+    if name == "HOLYWATER_HISTORY_MAX_ROWS":
+        return max(0, min(parsed, 1_000_000))
+    return parsed
 
 
 def _template_fields(template: str) -> list[str]:

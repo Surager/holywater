@@ -937,21 +937,15 @@ def initialize_database(db_path: str | Path | None = None, *, force_seed: bool =
     path = _resolve_db_path(db_path)
     with closing(connect(path)) as conn:
         conn.executescript(SCHEMA)
+        _dedupe_templates(conn)
+        _dedupe_fragments(conn)
+        _create_unique_indexes(conn)
+        _insert_missing_templates(conn)
+        _insert_missing_fragments(conn)
         if force_seed:
-            conn.executemany(
-                "INSERT INTO templates (style, mood, template, weight, enabled) VALUES (?, ?, ?, ?, ?)",
-                TEMPLATES,
-            )
-            conn.executemany(
-                "INSERT INTO fragments (category, value, style, mood, weight) VALUES (?, ?, ?, ?, ?)",
-                _all_fragments(),
-            )
-        else:
-            _insert_missing_templates(conn)
-            _insert_missing_fragments(conn)
             _sync_builtin_weights(conn)
-            _disable_deprecated_templates(conn)
-            _delete_deprecated_fragments(conn)
+        _disable_deprecated_templates(conn)
+        _delete_deprecated_fragments(conn)
         conn.commit()
     return path
 
@@ -986,6 +980,44 @@ def _can_write_database(path: Path) -> bool:
         return True
     except OSError:
         return False
+
+
+def _dedupe_templates(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        DELETE FROM templates
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM templates
+            GROUP BY style, mood, template
+        )
+        """
+    )
+
+
+def _dedupe_fragments(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        DELETE FROM fragments
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM fragments
+            GROUP BY category, value, style, mood
+        )
+        """
+    )
+
+
+def _create_unique_indexes(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_templates_unique
+            ON templates (style, mood, template);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_fragments_unique
+            ON fragments (category, value, COALESCE(style, ''), COALESCE(mood, ''));
+        """
+    )
 
 
 def _insert_missing_templates(conn: sqlite3.Connection) -> None:

@@ -10,9 +10,12 @@ import sqlite3
 import sys
 import tempfile
 
+from fastapi.testclient import TestClient
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from holywater.db import CONTEXT_FRAGMENTS, DEPRECATED_TEMPLATES, FRAGMENTS, TEMPLATES, initialize_database
+from holywater.db import CONTEXT_FRAGMENTS, DEPRECATED_TEMPLATES, FRAGMENTS, SCHEMA, TEMPLATES, initialize_database
+from holywater.api import app
 from holywater.generator import (
     ALLOWED_MOODS,
     ALLOWED_STYLES,
@@ -22,6 +25,7 @@ from holywater.generator import (
     MODERN_CONTEXTS,
     REFERENCE_BOOKS,
     HolyWaterGenerator,
+    _env_int,
 )
 
 
@@ -46,6 +50,54 @@ def test_database_seed_is_idempotent() -> None:
             fragments = conn.execute("SELECT COUNT(*) FROM fragments").fetchone()[0]
         assert templates == len(TEMPLATES)
         assert fragments == _expected_fragment_count()
+
+
+def test_force_seed_refresh_is_idempotent() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        db_path = Path(tmp) / "holywater.sqlite3"
+        initialize_database(db_path)
+        initialize_database(db_path, force_seed=True)
+        initialize_database(db_path, force_seed=True)
+        with closing(sqlite3.connect(db_path)) as conn:
+            templates = conn.execute("SELECT COUNT(*) FROM templates").fetchone()[0]
+            fragments = conn.execute("SELECT COUNT(*) FROM fragments").fetchone()[0]
+        assert templates == len(TEMPLATES)
+        assert fragments == _expected_fragment_count()
+
+
+def test_initialize_dedupes_legacy_seed_duplicates() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        db_path = Path(tmp) / "holywater.sqlite3"
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.executescript(SCHEMA)
+            conn.executemany(
+                "INSERT INTO templates (style, mood, template, weight, enabled) VALUES (?, ?, ?, ?, ?)",
+                [TEMPLATES[0], TEMPLATES[0]],
+            )
+            conn.executemany(
+                "INSERT INTO fragments (category, value, style, mood, weight) VALUES (?, ?, ?, ?, ?)",
+                [FRAGMENTS[0], FRAGMENTS[0]],
+            )
+            conn.commit()
+        initialize_database(db_path)
+        with closing(sqlite3.connect(db_path)) as conn:
+            template_count = conn.execute(
+                "SELECT COUNT(*) FROM templates WHERE style = ? AND mood = ? AND template = ?",
+                TEMPLATES[0][:3],
+            ).fetchone()[0]
+            fragment_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM fragments
+                WHERE category = ?
+                  AND value = ?
+                  AND (style IS ? OR style = ?)
+                  AND (mood IS ? OR mood = ?)
+                """,
+                (FRAGMENTS[0][0], FRAGMENTS[0][1], FRAGMENTS[0][2], FRAGMENTS[0][2], FRAGMENTS[0][3], FRAGMENTS[0][3]),
+            ).fetchone()[0]
+        assert template_count == 1
+        assert fragment_count == 1
 
 
 def test_deprecated_templates_are_disabled() -> None:
@@ -191,6 +243,48 @@ def test_history_cleanup_respects_retention_days() -> None:
         _restore_env("HOLYWATER_HISTORY_MAX_ROWS", old_rows)
 
 
+def test_history_env_values_are_clamped() -> None:
+    old_days = os.environ.get("HOLYWATER_HISTORY_RETENTION_DAYS")
+    old_rows = os.environ.get("HOLYWATER_HISTORY_MAX_ROWS")
+    os.environ["HOLYWATER_HISTORY_RETENTION_DAYS"] = "-1"
+    os.environ["HOLYWATER_HISTORY_MAX_ROWS"] = "2000000"
+    try:
+        assert _env_int("HOLYWATER_HISTORY_RETENTION_DAYS", 7) == 0
+        assert _env_int("HOLYWATER_HISTORY_MAX_ROWS", 5000) == 1_000_000
+    finally:
+        _restore_env("HOLYWATER_HISTORY_RETENTION_DAYS", old_days)
+        _restore_env("HOLYWATER_HISTORY_MAX_ROWS", old_rows)
+
+
+def test_api_rejects_invalid_parameters() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        old_db = os.environ.get("HOLYWATER_DB")
+        os.environ["HOLYWATER_DB"] = str(Path(tmp) / "holywater.sqlite3")
+        try:
+            with TestClient(app) as client:
+                response = client.get("/generate", params={"style": "invalid"})
+                assert response.status_code == 422
+                response = client.get("/generate", params={"intensity": 99})
+                assert response.status_code == 422
+        finally:
+            _restore_env("HOLYWATER_DB", old_db)
+
+
+def test_api_generate_uses_lifespan_generator() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        old_db = os.environ.get("HOLYWATER_DB")
+        os.environ["HOLYWATER_DB"] = str(Path(tmp) / "holywater.sqlite3")
+        try:
+            with TestClient(app) as client:
+                response = client.get("/generate", params={"seed": "123"})
+                assert response.status_code == 200
+                payload = response.json()
+                assert payload["seed"] == 123
+                assert payload["content"]
+        finally:
+            _restore_env("HOLYWATER_DB", old_db)
+
+
 def test_neutral_context_filters_modern_fragments() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         generator = HolyWaterGenerator(Path(tmp) / "holywater.sqlite3")
@@ -235,6 +329,8 @@ def _restore_env(name: str, value: str | None) -> None:
 if __name__ == "__main__":
     test_database_initializes()
     test_database_seed_is_idempotent()
+    test_force_seed_refresh_is_idempotent()
+    test_initialize_dedupes_legacy_seed_duplicates()
     test_deprecated_templates_are_disabled()
     test_seed_reproducible()
     test_numeric_string_seed_is_preserved()
@@ -245,6 +341,9 @@ if __name__ == "__main__":
     test_reference_books_are_varied_by_style()
     test_history_cleanup_respects_max_rows()
     test_history_cleanup_respects_retention_days()
+    test_history_env_values_are_clamped()
+    test_api_rejects_invalid_parameters()
+    test_api_generate_uses_lifespan_generator()
     test_neutral_context_filters_modern_fragments()
     test_daily_is_stable()
     print("All tests passed.")

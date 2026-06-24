@@ -9,8 +9,8 @@
 - intensity：`1` 到 `5`，从普通提醒逐步偏向强烈、荒诞、启示录式表达
 - context：默认偏向中性生活场景；可显式使用 `home`、`walk`、`rest`、`reading`、`meal`、`garden`、`coding`、`thesis`、`gaming`
 - seed：传入相同 seed 可复现生成结果
-- 引用：每条文案返回伪经文引用，例如 `《饮水记》2:7`
-- 去重：`generation_history` 会记录近期生成内容，短时间内尽量避免重复
+- 引用：每条文案返回伪经文引用，例如 `《饮水记》2:7`、`《清泉诗篇》4:12`、`《杯中律》1:8`
+- 去重：`generation_history` 会记录近期生成内容，短时间内尽量避免重复，并自动清理旧历史
 - daily：使用日期和参数生成每日固定文案
 - 默认随机：不传参数时会随机选择 style、mood、intensity 和生活类 context；程序员、论文、游戏场景需要显式传 `--context coding/thesis/gaming`
 
@@ -47,6 +47,15 @@ python -m pip install -e .
 ```
 
 默认数据库路径是 `~/.holywater/holywater.sqlite3`。API 可通过环境变量 `HOLYWATER_DB` 指定数据库文件。
+
+历史记录清理可通过环境变量配置：
+
+```powershell
+$env:HOLYWATER_HISTORY_RETENTION_DAYS="7"
+$env:HOLYWATER_HISTORY_MAX_ROWS="5000"
+```
+
+默认保留最近 7 天，且最多保留 5000 条。设置为 `0` 可关闭对应限制。
 
 ## Library Mode
 
@@ -146,7 +155,7 @@ GET /daily?style=psalm&mood=serious&intensity=2&context=coding&day=2026-06-12
 ```json
 {
   "content": "到了第三时辰，那口渴的人见杯中的清水，便说：“要喝水。”于是他举杯饮下，其喉便不再干涸。",
-  "reference": "《饮水记》2:7",
+  "reference": "《清泉始记》2:7",
   "style": "genesis",
   "mood": "serious",
   "seed": 42

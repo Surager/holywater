@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import random
 import re
 from contextlib import closing
@@ -18,6 +19,50 @@ ALLOWED_STYLES = {"genesis", "psalm", "proverb", "revelation", "gospel", "comman
 ALLOWED_MOODS = {"serious", "absurd"}
 RANDOM_VALUE = "random"
 PLACEHOLDER_RE = re.compile(r"{([a-zA-Z_][a-zA-Z0-9_]*)}")
+REFERENCE_BOOKS = {
+    "genesis": [
+        ("饮水记", 7, 31),
+        ("杯源记", 6, 28),
+        ("清泉始记", 5, 24),
+        ("晨杯记", 4, 22),
+        ("水初记", 6, 26),
+    ],
+    "psalm": [
+        ("杯中诗", 9, 33),
+        ("清泉诗篇", 8, 30),
+        ("润喉歌", 6, 26),
+        ("水边颂", 7, 28),
+        ("安息诗", 5, 24),
+    ],
+    "proverb": [
+        ("清泉箴言", 8, 30),
+        ("水杯箴言", 7, 28),
+        ("润身训", 6, 24),
+        ("杯旁智慧", 5, 22),
+        ("不渴训言", 6, 26),
+    ],
+    "revelation": [
+        ("启杯录", 7, 35),
+        ("清泉启示录", 6, 32),
+        ("末杯异象", 5, 30),
+        ("水光默示录", 6, 34),
+        ("杯沿异象", 5, 28),
+    ],
+    "gospel": [
+        ("补水福音", 8, 30),
+        ("清水福音", 7, 28),
+        ("杯边福音", 6, 26),
+        ("润喉福音", 5, 24),
+        ("安息福音", 6, 26),
+    ],
+    "commandment": [
+        ("饮水诫", 6, 30),
+        ("杯中律", 5, 26),
+        ("清泉律例", 6, 28),
+        ("不渴诫命", 5, 24),
+        ("润身法度", 5, 24),
+    ],
+}
 
 CONTEXT_KEYWORDS = {
     "home": ("清晨", "窗边", "厨房", "茶几", "家中", "院中"),
@@ -103,6 +148,8 @@ DEFAULT_CONTEXT_CHOICES = [
 ]
 DEFAULT_MOOD_CHOICES = ["serious", "serious", "serious", "serious", "serious", "absurd", "absurd"]
 DEFAULT_INTENSITY_CHOICES = [1, 1, 2, 2, 3, 3, 4, 5]
+DEFAULT_HISTORY_RETENTION_DAYS = 7
+DEFAULT_HISTORY_MAX_ROWS = 5000
 
 
 class HolyWaterGenerator:
@@ -290,20 +337,43 @@ class HolyWaterGenerator:
                 "INSERT INTO generation_history (text, style, mood) VALUES (?, ?, ?)",
                 (text, style, mood),
             )
+            self._cleanup_history(conn)
             conn.commit()
 
+    def _cleanup_history(self, conn: Any) -> None:
+        retention_days = _env_int("HOLYWATER_HISTORY_RETENTION_DAYS", DEFAULT_HISTORY_RETENTION_DAYS)
+        max_rows = _env_int("HOLYWATER_HISTORY_MAX_ROWS", DEFAULT_HISTORY_MAX_ROWS)
+
+        if retention_days > 0:
+            conn.execute(
+                """
+                DELETE FROM generation_history
+                WHERE created_at < datetime('now', ?)
+                """,
+                (f"-{retention_days} days",),
+            )
+
+        if max_rows > 0:
+            conn.execute(
+                """
+                DELETE FROM generation_history
+                WHERE id NOT IN (
+                    SELECT id
+                    FROM generation_history
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                )
+                """,
+                (max_rows,),
+            )
+
     def _make_reference(self, style: str, intensity: int, rng: random.Random) -> str:
-        book_by_style = {
-            "genesis": "饮水记",
-            "psalm": "杯中诗",
-            "proverb": "清泉箴言",
-            "revelation": "启杯录",
-            "gospel": "补水福音",
-            "commandment": "饮水诫",
-        }
-        chapter = rng.randint(1, max(2, intensity + 1))
-        verse = rng.randint(1, 6 + intensity * 5)
-        return f"《{book_by_style[style]}》{chapter}:{verse}"
+        book, max_chapter, max_verse = rng.choice(REFERENCE_BOOKS[style])
+        chapter_limit = min(max_chapter, max(2, intensity + 3))
+        verse_limit = min(max_verse, 8 + intensity * 6)
+        chapter = rng.randint(1, chapter_limit)
+        verse = rng.randint(1, verse_limit)
+        return f"《{book}》{chapter}:{verse}"
 
     @staticmethod
     def _validate_style(style: str) -> str:
@@ -392,6 +462,16 @@ def stable_seed(value: str) -> int:
 
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
     return int(digest[:12], 16) % (2**31 - 1)
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
 
 
 def _template_fields(template: str) -> list[str]:

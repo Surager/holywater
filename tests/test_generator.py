@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from contextlib import closing
+import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -18,6 +20,7 @@ from holywater.generator import (
     DEFAULT_MOOD_CHOICES,
     MODERN_CONTEXT_KEYWORDS,
     MODERN_CONTEXTS,
+    REFERENCE_BOOKS,
     HolyWaterGenerator,
 )
 
@@ -125,6 +128,69 @@ def test_random_style_can_pick_non_genesis() -> None:
         assert styles - {"genesis"}
 
 
+def test_reference_books_are_varied_by_style() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        generator = HolyWaterGenerator(Path(tmp) / "holywater.sqlite3")
+        for style in ALLOWED_STYLES:
+            references = {
+                generator.generate(
+                    style=style,
+                    seed=seed,
+                    save_history=False,
+                    avoid_recent=False,
+                ).reference
+                for seed in range(40)
+            }
+            book_names = {_reference_book(reference) for reference in references}
+            allowed_books = {book for book, _, _ in REFERENCE_BOOKS[style]}
+            assert book_names <= allowed_books
+            assert len(book_names) >= 2
+
+
+def test_history_cleanup_respects_max_rows() -> None:
+    old_value = os.environ.get("HOLYWATER_HISTORY_MAX_ROWS")
+    os.environ["HOLYWATER_HISTORY_MAX_ROWS"] = "3"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "holywater.sqlite3"
+            generator = HolyWaterGenerator(db_path)
+            for seed in range(8):
+                generator.generate(seed=seed)
+            with closing(sqlite3.connect(db_path)) as conn:
+                count = conn.execute("SELECT COUNT(*) FROM generation_history").fetchone()[0]
+            assert count == 3
+    finally:
+        _restore_env("HOLYWATER_HISTORY_MAX_ROWS", old_value)
+
+
+def test_history_cleanup_respects_retention_days() -> None:
+    old_days = os.environ.get("HOLYWATER_HISTORY_RETENTION_DAYS")
+    old_rows = os.environ.get("HOLYWATER_HISTORY_MAX_ROWS")
+    os.environ["HOLYWATER_HISTORY_RETENTION_DAYS"] = "1"
+    os.environ["HOLYWATER_HISTORY_MAX_ROWS"] = "0"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "holywater.sqlite3"
+            generator = HolyWaterGenerator(db_path)
+            with closing(sqlite3.connect(db_path)) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO generation_history (text, style, mood, created_at)
+                    VALUES (?, ?, ?, datetime('now', '-3 days'))
+                    """,
+                    ("old", "genesis", "serious"),
+                )
+                conn.commit()
+            generator.generate(seed=1)
+            with closing(sqlite3.connect(db_path)) as conn:
+                texts = [row[0] for row in conn.execute("SELECT text FROM generation_history").fetchall()]
+            assert "old" not in texts
+            assert texts
+    finally:
+        _restore_env("HOLYWATER_HISTORY_RETENTION_DAYS", old_days)
+        _restore_env("HOLYWATER_HISTORY_MAX_ROWS", old_rows)
+
+
 def test_neutral_context_filters_modern_fragments() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         generator = HolyWaterGenerator(Path(tmp) / "holywater.sqlite3")
@@ -153,6 +219,19 @@ def _expected_fragment_count() -> int:
     return len({(category, value, style, mood) for category, value, style, mood, _ in all_fragments})
 
 
+def _reference_book(reference: str) -> str:
+    match = re.fullmatch(r"《(.+)》\d+:\d+", reference)
+    assert match is not None
+    return match.group(1)
+
+
+def _restore_env(name: str, value: str | None) -> None:
+    if value is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = value
+
+
 if __name__ == "__main__":
     test_database_initializes()
     test_database_seed_is_idempotent()
@@ -163,6 +242,9 @@ if __name__ == "__main__":
     test_default_context_choices_favor_neutral_life()
     test_default_mood_choices_favor_serious()
     test_random_style_can_pick_non_genesis()
+    test_reference_books_are_varied_by_style()
+    test_history_cleanup_respects_max_rows()
+    test_history_cleanup_respects_retention_days()
     test_neutral_context_filters_modern_fragments()
     test_daily_is_stable()
     print("All tests passed.")

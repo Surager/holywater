@@ -15,7 +15,21 @@ jobs:
   dispatch:
     runs-on: ubuntu-latest
     steps:
+      - name: Check BLOG_REPO_TOKEN
+        id: gate
+        env:
+          BLOG_REPO_TOKEN: ${{ secrets.BLOG_REPO_TOKEN }}
+        run: |
+          if [ -z "$BLOG_REPO_TOKEN" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::BLOG_REPO_TOKEN secret is not set. Skipping blog Pages rebuild."
+            echo "Add a classic PAT with repo scope to holywater repo secrets as BLOG_REPO_TOKEN."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Request Surager.github.io Pages rebuild
+        if: steps.gate.outputs.enabled == 'true'
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.BLOG_REPO_TOKEN }}

@@ -15,7 +15,7 @@
 - 可用 seed 复现同一条生成结果
 - 每条文案都有伪经文引用
 - 内置近期去重，避免短时间内反复生成同一句
-- 可作为命令行工具、Python 库或 FastAPI 服务使用
+- 可作为命令行工具、Python 库、FastAPI 服务或单文件静态页使用
 
 ## Install and run
 
@@ -98,6 +98,17 @@ print(text.content)
 print(text.reference)
 ```
 
+## Static HTML
+
+将完整语料和生成逻辑编译成**单个**自包含 HTML 文件，打开即可用，无需服务器：
+
+```bash
+holywater build
+holywater build --output holywater.html
+```
+
+默认输出 `dist/index.html`。页面内可查看今日经文、随机生成，并一键复制到剪贴板。
+
 ## API
 
 ```bash
@@ -118,6 +129,7 @@ $ holywater generate --help
 
 ```console
 $ holywater daily --help
+$ holywater build --help
 ```
 
 常用参数：

@@ -8,6 +8,7 @@ from typing import Optional
 
 import typer
 
+from .build import compile_static_html
 from .db import initialize_database
 from .generator import ALLOWED_MOODS, ALLOWED_STYLES, HolyWaterGenerator
 
@@ -127,6 +128,22 @@ def daily(
         typer.echo(json.dumps(text.__dict__, ensure_ascii=False, indent=2))
         return
     typer.echo(f"{text.content} {text.reference}")
+
+
+@app.command()
+def build(
+    output: Path = typer.Option(
+        Path("dist/index.html"),
+        "--output",
+        "-o",
+        help="Path to the self-contained HTML file.",
+    ),
+    db_path: Optional[Path] = typer.Option(None, "--db", help="SQLite database path."),
+) -> None:
+    """Compile the full generator into one static HTML file."""
+
+    path = compile_static_html(output, db_path)
+    typer.echo(f"Static HTML compiled: {path.resolve()}")
 
 
 if __name__ == "__main__":

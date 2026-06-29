@@ -1,0 +1,23 @@
+name: Trigger blog Pages rebuild
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Surager.github.io Pages rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.BLOG_REPO_TOKEN }}
+          repository: Surager/Surager.github.io
+          event-type: holywater-updated

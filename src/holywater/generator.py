@@ -259,6 +259,7 @@ class HolyWaterGenerator:
                     WHERE enabled = 1
                       AND style = ?
                       AND mood = ?
+                    ORDER BY id
                     """,
                     (style, mood),
                 )
@@ -266,7 +267,7 @@ class HolyWaterGenerator:
             if not rows:
                 rows = rows_to_dicts(
                     conn.execute(
-                        "SELECT id, style, mood, template, weight FROM templates WHERE enabled = 1"
+                        "SELECT id, style, mood, template, weight FROM templates WHERE enabled = 1 ORDER BY id"
                     )
                 )
         if not rows:
@@ -297,6 +298,7 @@ class HolyWaterGenerator:
                     WHERE category = ?
                       AND (style IS NULL OR style = ?)
                       AND (mood IS NULL OR mood = ?)
+                    ORDER BY id
                     """,
                     (category, style, mood),
                 )
@@ -304,7 +306,7 @@ class HolyWaterGenerator:
             if not rows:
                 rows = rows_to_dicts(
                     conn.execute(
-                        "SELECT id, category, value, style, mood, weight FROM fragments WHERE category = ?",
+                        "SELECT id, category, value, style, mood, weight FROM fragments WHERE category = ? ORDER BY id",
                         (category,),
                     )
                 )
